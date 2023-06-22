@@ -15,3 +15,9 @@ Tiny RISCV CPU. Originally based on Sarah L. Harris MIPS CPU ("Digital Design an
 [New Instruction Example (Russian)](https://raw.githubusercontent.com/wiki/zhelnio/schoolRISCV/doc/schoolRISCV_steps_ru.pdf)
 
 [RISC-V ISA Specification](https://raw.githubusercontent.com/wiki/zhelnio/schoolRISCV/doc/riscv-spec-20191213.pdf)
+
+## От автора форка
+
+Если у вас Linux, то можно просто создать проект в Vivado и импортировать файлы на Verilog, а для hex-файлов достаточно будет gcc для RISC-V, JRE (RARS) и make, чтобы всё это собирать. И никакой головной боли с виртуалками, Icarus, Quartus и прочим.
+
+NB: RARS не умеет встраивать слова в код на языке ассемблера, поэтому в 4-й программе вместо него используется gcc. Зачем оно понадобилось, читайте здесь: [[extension.md]](https://github.com/visvaldas01/schoolRISCV/blob/00_simple/program/04_math/extension.md).
