@@ -22,6 +22,7 @@ module sr_cpu
     //control wires
     wire        aluZero;
     wire        pcSrc;
+    wire        pcStop;
     wire        regWrite;
     wire        aluSrc;
     wire        wdSrc;
@@ -42,7 +43,7 @@ module sr_cpu
     wire [31:0] pc;
     wire [31:0] pcBranch = pc + immB;
     wire [31:0] pcPlus4  = pc + 4;
-    wire [31:0] pcNext   = pcSrc ? pcBranch : pcPlus4;
+    wire [31:0] pcNext   = pcStop ? pc : (pcSrc ? pcBranch : pcPlus4);
     sm_register r_pc(clk ,rst_n, pcNext, pc);
 
     //program memory access
@@ -68,6 +69,24 @@ module sr_cpu
     wire [31:0] rd1;
     wire [31:0] rd2;
     wire [31:0] wd3;
+
+    wire [15:0] mathShort;
+    wire [31:0] mathResult;
+    wire        mathStart;
+    wire        mathBusy;
+    wire        mathReady;
+    
+    assign mathResult = {16'b0, mathShort};
+    
+    func math_block (
+        .clk_i      ( clk          ),
+        .rst_i      ( ~rst_n       ),
+        .start_i    ( mathStart    ),
+        .a_bi       ( rd1          ),
+        .b_bi       ( rd2          ),
+        .y_bo       ( mathShort    ),
+        .busy_o     ( mathBusy     )
+    );
 
     sm_register_file rf (
         .clk        ( clk          ),
@@ -97,19 +116,24 @@ module sr_cpu
         .result     ( aluResult    ) 
     );
 
-    assign wd3 = wdSrc ? immU : aluResult;
+    assign wd3 = wdSrc ? immU : (mathReady ? mathResult : aluResult);
 
     //control
     sr_control sm_control (
+        .clk        ( clk          ),
         .cmdOp      ( cmdOp        ),
         .cmdF3      ( cmdF3        ),
         .cmdF7      ( cmdF7        ),
         .aluZero    ( aluZero      ),
+        .mathBusy   ( mathBusy     ),
+        .mathStart  ( mathStart    ),
+        .mathReady  ( mathReady    ),
         .pcSrc      ( pcSrc        ),
         .regWrite   ( regWrite     ),
         .aluSrc     ( aluSrc       ),
         .wdSrc      ( wdSrc        ),
-        .aluControl ( aluControl   ) 
+        .aluControl ( aluControl   ),
+        .pcStop     ( pcStop       )
     );
 
 endmodule
@@ -159,19 +183,26 @@ endmodule
 
 module sr_control
 (
+    input            clk,
     input     [ 6:0] cmdOp,
     input     [ 2:0] cmdF3,
     input     [ 6:0] cmdF7,
     input            aluZero,
+    input            mathBusy,
+    output reg       mathStart,
+    output           mathReady,
     output           pcSrc, 
     output reg       regWrite, 
     output reg       aluSrc,
     output reg       wdSrc,
-    output reg [2:0] aluControl
+    output reg [2:0] aluControl,
+    output reg       pcStop
 );
     reg          branch;
     reg          condZero;
+    reg          mathBusyPrev;
     assign pcSrc = branch & (aluZero == condZero);
+    assign mathReady = mathBusyPrev && ~mathBusy;
 
     always @ (*) begin
         branch      = 1'b0;
@@ -179,6 +210,8 @@ module sr_control
         regWrite    = 1'b0;
         aluSrc      = 1'b0;
         wdSrc       = 1'b0;
+        mathStart   = 1'b0;
+        pcStop      = 1'b0;
         aluControl  = `ALU_ADD;
 
         casez( {cmdF7, cmdF3, cmdOp} )
@@ -189,13 +222,34 @@ module sr_control
             { `RVF7_SUB,  `RVF3_SUB,  `RVOP_SUB  } : begin regWrite = 1'b1; aluControl = `ALU_SUB;  end
 
             { `RVF7_ANY,  `RVF3_ADDI, `RVOP_ADDI } : begin regWrite = 1'b1; aluSrc = 1'b1; aluControl = `ALU_ADD; end
-            { `RVF7_ANY,  `RVF3_ANDI, `RVOP_ANDI } : begin regWrite = 1'b1; aluSrc = 1'b1; aluControl = `ALU_AND; end
             { `RVF7_ANY,  `RVF3_ANY,  `RVOP_LUI  } : begin regWrite = 1'b1; wdSrc  = 1'b1; end
 
             { `RVF7_ANY,  `RVF3_BEQ,  `RVOP_BEQ  } : begin branch = 1'b1; condZero = 1'b1; aluControl = `ALU_SUB; end
             { `RVF7_ANY,  `RVF3_BNE,  `RVOP_BNE  } : begin branch = 1'b1; aluControl = `ALU_SUB; end
+
+            { `RVF7_ANY,  `RVF3_ANDI, `RVOP_ANDI } : begin regWrite = 1'b1; aluSrc = 1'b1; aluControl = `ALU_AND; end
+            { `RVF7_FUNC, `RVF3_FUNC, `RVOP_FUNC } :
+            begin
+                if (~mathBusyPrev && ~mathBusy)
+                begin
+                    pcStop = 1'b1; mathStart = 1'b1;
+                end
+                else if (mathReady)
+                begin
+                    regWrite = 1'b1;
+                end
+                else
+                begin
+                    pcStop = 1'b1;
+                end
+            end
         endcase
     end
+    
+    always @ (posedge clk) begin
+        mathBusyPrev <= mathBusy;
+    end
+    
 endmodule
 
 module sr_alu

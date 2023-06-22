@@ -20,6 +20,7 @@
 `define RVOP_ANDI   7'b0010011
 `define RVOP_ADDI   7'b0010011
 `define RVOP_BEQ    7'b1100011
+`define RVOP_FUNC   7'b1101011
 `define RVOP_LUI    7'b0110111
 `define RVOP_BNE    7'b1100011
 `define RVOP_ADD    7'b0110011
@@ -35,6 +36,7 @@
 `define RVF3_BNE    3'b001
 `define RVF3_ADD    3'b000
 `define RVF3_OR     3'b110
+`define RVF3_FUNC   3'b110
 `define RVF3_SRL    3'b101
 `define RVF3_SLTU   3'b011
 `define RVF3_SUB    3'b000
@@ -46,5 +48,5 @@
 `define RVF7_SRL    7'b0000000
 `define RVF7_SLTU   7'b0000000
 `define RVF7_SUB    7'b0100000
+`define RVF7_FUNC   7'b0100001
 `define RVF7_ANY    7'b???????
-
